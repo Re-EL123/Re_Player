@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" id="htmlRoot">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Re-Player</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Manifest for PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+
+  <!-- Favicon / Icons (Optional) -->
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-512.png">
+
+  <style>
+    .bg-dark { background-color: #000; }
+    .bg-light { background-color: #fff; }
+    .text-light { color: #fff; }
+    .text-dark { color: #000; }
+    .accent { color: #ff9500; }
+    .bouncy { transition: transform 0.3s cubic-bezier(.68,-0.55,.265,1.55); }
+    .bouncy:active { transform: scale(0.95); }
+    canvas { width: 100%; height: 64px; display: block; }
+  </style>
+</head>
+<body class="min-h-screen p-6 font-sans bg-dark text-light" id="bodyRoot">
+  <div class="max-w-md mx-auto">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-3xl font-semibold accent">Re-Player</h1>
+      <button id="themeToggle" class="bouncy px-3 py-1 rounded-full border accent border-accent">Toggle Theme</button>
+    </div>
+
+    <label class="block mb-4">
+      <span class="sr-only">Choose audio file</span>
+      <input type="file" id="fileInput" accept="audio/*" class="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-800 file:text-light file:bouncy hover:file:bg-gray-700"/>
+    </label>
+
+    <canvas id="visualizerCanvas" class="bg-gray-900 rounded-xl mb-4"></canvas>
+
+    <div class="mb-4">
+      <label for="eqPreset" class="block text-sm font-medium accent mb-1">Equalizer Preset</label>
+      <select id="eqPreset" class="block w-full p-2 rounded-md bg-gray-800 text-light bouncy hover:bg-gray-700">
+        <option value="flat">Flat</option>
+        <option value="nexus">Nexus</option>
+        <option value="jbl">JBL</option>
+        <option value="jvc">JVC</option>
+        <option value="apple">Apple</option>
+      </select>
+    </div>
+
+    <audio id="audioPlayer" controls class="w-full mb-6 accent"></audio>
+
+    <div class="mb-6">
+      <h2 class="text-xl font-medium accent mb-2">Recently Played</h2>
+      <ul id="recentList" class="space-y-1 text-sm"></ul>
+    </div>
+
+    <div class="text-sm text-center">
+      <p>Developed by <strong>Akani Shibiri</strong> of <a href="https://www.re-el-branding.rf.gd" target="_blank" class="underline accent">Re-EL Branding</a>.</p>
+    </div>
+  </div>
+
+  <!-- JS Core -->
+  <script>
+    const htmlRoot = document.getElementById('htmlRoot');
+    const bodyRoot = document.getElementById('bodyRoot');
+    const themeToggle = document.getElementById('themeToggle');
+    const applyTheme = t => {
+      bodyRoot.classList.replace(t === 'light' ? 'bg-dark' : 'bg-light', t === 'light' ? 'bg-light' : 'bg-dark');
+      bodyRoot.classList.replace(t === 'light' ? 'text-light' : 'text-dark', t === 'light' ? 'text-dark' : 'text-light');
+      htmlRoot.classList.toggle('dark', t !== 'light');
+      localStorage.setItem('theme', t);
+    };
+    applyTheme(localStorage.getItem('theme') || 'dark');
+    themeToggle.addEventListener('click', () => applyTheme(localStorage.getItem('theme') === 'dark' ? 'light' : 'dark'));
+
+    const fileInput = document.getElementById('fileInput');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const eqPresetSelect = document.getElementById('eqPreset');
+    const recentList = document.getElementById('recentList');
+    const canvas = document.getElementById('visualizerCanvas');
+    const canvasCtx = canvas.getContext('2d');
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const sourceNode = audioCtx.createMediaElementSource(audioPlayer);
+    const analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const freqs = [60, 170, 350, 1000, 3500, 10000];
+    const filters = freqs.map(f => {
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'peaking'; filter.frequency.value = f;
+      filter.Q.value = 1; filter.gain.value = 0;
+      return filter;
+    });
+
+    sourceNode.connect(filters[0]);
+    for (let i = 0; i < filters.length - 1; i++) filters[i].connect(filters[i + 1]);
+    filters[filters.length - 1].connect(analyser);
+    analyser.connect(audioCtx.destination);
+
+    const presets = {
+      flat: [0,0,0,0,0,0], nexus: [4,2,-1,-1,2,4], jbl: [5,3,0,-2,3,5],
+      jvc: [3,1,0,-1,1,3], apple: [2,1,0,-1,1,2]
+    };
+    eqPresetSelect.addEventListener('change', () => {
+      const gains = presets[eqPresetSelect.value];
+      filters.forEach((f,i) => f.gain.value = gains[i]);
+    });
+    filters.forEach((f,i) => f.gain.value = presets.flat[i]);
+
+    function loadRecent() {
+      const arr = JSON.parse(localStorage.getItem('recentTracks') || '[]');
+      recentList.innerHTML = '';
+      arr.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item.name; li.className = 'truncate cursor-pointer';
+        li.onclick = () => playTrack(item.name, item.path);
+        recentList.appendChild(li);
+      });
+    }
+    function saveRecent(name, path) {
+      const arr = JSON.parse(localStorage.getItem('recentTracks') || '[]')
+        .filter(i => i.path !== path);
+      arr.unshift({ name, path }); if(arr.length > 10) arr.pop();
+      localStorage.setItem('recentTracks', JSON.stringify(arr));
+      loadRecent();
+    }
+
+    async function playTrack(name, path) {
+      await audioCtx.resume();
+      audioPlayer.src = path;
+      audioPlayer.play();
+      saveRecent(name, path);
+      visualize();
+    }
+
+    fileInput.onchange = function() {
+      const file = this.files[0]; if (!file) return;
+      const url = URL.createObjectURL(file);
+      playTrack(file.name, url);
+    };
+
+    function visualize() {
+      canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+      function draw() {
+        requestAnimationFrame(draw);
+        analyser.getByteFrequencyData(dataArray);
+        canvasCtx.fillStyle = '#000'; canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+        const barWidth = (canvas.width / bufferLength) * 2.5;
+        let x = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const v = dataArray[i] / 255;
+          const h = v * canvas.height;
+          canvasCtx.fillStyle = '#ff9500';
+          canvasCtx.fillRect(x, canvas.height - h, barWidth, h);
+          x += barWidth + 1;
+        }
+      }
+      draw();
+    }
+
+    loadRecent();
+
+    // STEP 2: Register service worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+          .then(reg => console.log('Service Worker registered:', reg.scope))
+          .catch(err => console.error('Service Worker registration failed:', err));
+      });
+    }
+  </script>
+</body>
+</html>
