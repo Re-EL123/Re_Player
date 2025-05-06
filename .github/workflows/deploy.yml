@@ -1,0 +1,16 @@
+name: Sync to Glitch
+
+on:
+  push:
+    branches:
+      - main  # or your default branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Push to Glitch
+        run: |
+          git remote add glitch ${{ secrets.GLITCH_GIT_URL }}
+          git push glitch main --force
