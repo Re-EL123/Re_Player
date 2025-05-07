@@ -1,0 +1,15 @@
+{
+  "name": "replayer-backend",
+  "version": "1.0.0",
+  "description": "Re-Player Backend for Google Drive audio",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
+    "express": "^4.18.2",
+    "googleapis": "39.2.0"
+  }
+}
