@@ -39,15 +39,22 @@
       </button>
     </div>
 
+    <!-- Online Auth Button -->
+    <div class="mb-4 text-center">
+      <button onclick="window.location.href='https://experienced-denim-sushi.glitch.me/auth'"
+              class="bouncy px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white font-semibold rounded-full">
+        Load Online Songs
+      </button>
+    </div>
+
     <!-- Available Tracks from Drive -->
     <div class="mb-6">
       <h2 class="text-xl font-medium accent mb-2">Available Tracks</h2>
       <ul id="availableList" class="space-y-2 text-sm"></ul>
     </div>
 
-    <!-- Local File Input (optional) -->
+    <!-- Local File Input -->
     <label class="block mb-4">
-      <span class="sr-only">Choose audio file</span>
       <input type="file" id="fileInput" accept="audio/*"
         class="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full
                file:border-0 file:text-sm file:font-semibold file:bg-gray-800
@@ -70,7 +77,7 @@
       </select>
     </div>
 
-    <!-- Player (allow cross-origin for Drive streaming) -->
+    <!-- Player -->
     <audio id="audioPlayer" controls crossorigin="anonymous" class="w-full mb-6 accent"></audio>
 
     <!-- Recently Played -->
@@ -94,16 +101,15 @@
     </div>
   </div>
 
-  <!-- Inject your API key -->
   <script>
     const API_KEY = 'AIzaSyCkgTbWUiXyaYIcDvgLRg4IeiFmPIoeZMI';
   </script>
 
   <script>
-    // — Theme Toggle —
     const htmlRoot = document.getElementById('htmlRoot'),
           bodyRoot = document.getElementById('bodyRoot'),
           themeToggle = document.getElementById('themeToggle');
+
     const applyTheme = t => {
       bodyRoot.classList.replace(t==='light'?'bg-dark':'bg-light',
                                  t==='light'?'bg-light':'bg-dark');
@@ -116,7 +122,6 @@
     themeToggle.onclick = () =>
       applyTheme(localStorage.getItem('theme')==='dark'?'light':'dark');
 
-    // — Audio & Visualizer —
     const audioPlayer = document.getElementById('audioPlayer'),
           canvas = document.getElementById('visualizerCanvas'),
           canvasCtx = canvas.getContext('2d'),
@@ -126,7 +131,6 @@
     const bufferLength = analyser.frequencyBinCount,
           dataArray = new Uint8Array(bufferLength);
 
-    // EQ chain setup
     const freqs = [60,170,350,1000,3500,10000];
     const filters = freqs.map(f => {
       const fl = audioCtx.createBiquadFilter();
@@ -139,7 +143,6 @@
     filters.reduce((prev, f) => (prev.connect(f), f)).connect(analyser);
     analyser.connect(audioCtx.destination);
 
-    // EQ presets
     const presets = {
       flat: [0,0,0,0,0,0],
       nexus: [4,2,-1,-1,2,4],
@@ -151,11 +154,9 @@
       filters.forEach((f,i) => f.gain.value = presets[e.target.value][i]);
     };
 
-    // Storage helpers
     const getArr = k => JSON.parse(localStorage.getItem(k)||'[]'),
           setArr = (k,a) => localStorage.setItem(k, JSON.stringify(a));
 
-    // Play & visualize
     async function playTrack(name,url,uploader){
       await audioCtx.resume();
       audioPlayer.src = url;
@@ -183,7 +184,6 @@
       draw();
     }
 
-    // Render lists
     function renderList(key, ulId){
       const ul = document.getElementById(ulId),
             arr = getArr(key);
@@ -215,40 +215,40 @@
       renderList('recent','recentList');
     }
 
-    // Fetch available tracks from backend
     async function loadAvailable(){
-      const res = await fetch('https://experienced-denim-sushi.glitch.me/api/files');
-      const files = await res.json();
-      const ul = document.getElementById('availableList');
-      files.forEach(f => {
-        const url = `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${API_KEY}`;
-        const li = document.createElement('li');
-        li.className = 'flex justify-between items-center';
-        li.innerHTML = `
-          <span class="truncate">${f.name} <em>by ${f.uploader}</em></span>
-          <div>
-            <button class="bouncy px-2" onclick='playTrack("${f.name}","${url}","${f.uploader}")'>▶️</button>
-            <span class="favorite bouncy px-2" onclick='toggleFav("${f.name}","${url}","${f.uploader}")'>
-              ${getArr('favs').some(f2 => f2.url===url) ? '⭐' : '☆'}
-            </span>
-          </div>`;
-        ul.appendChild(li);
-      });
+      try {
+        const res = await fetch('https://experienced-denim-sushi.glitch.me/api/files');
+        const files = await res.json();
+        const ul = document.getElementById('availableList');
+        files.forEach(f => {
+          const url = `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${API_KEY}`;
+          const li = document.createElement('li');
+          li.className = 'flex justify-between items-center';
+          li.innerHTML = `
+            <span class="truncate">${f.name} <em>by ${f.uploader}</em></span>
+            <div>
+              <button class="bouncy px-2" onclick='playTrack("${f.name}","${url}","${f.uploader}")'>▶️</button>
+              <span class="favorite bouncy px-2" onclick='toggleFav("${f.name}","${url}","${f.uploader}")'>
+                ${getArr('favs').some(f2 => f2.url===url) ? '⭐' : '☆'}
+              </span>
+            </div>`;
+          ul.appendChild(li);
+        });
+      } catch (err) {
+        console.error('Drive Load Failed:', err);
+      }
     }
 
-    // Local file input handler
     document.getElementById('fileInput').onchange = function(){
       const f = this.files[0];
       if (!f) return;
       playTrack(f.name, URL.createObjectURL(f), 'Local');
     };
 
-    // Initialize
     loadAvailable();
     renderList('recent','recentList');
     renderList('favs','favList');
 
-    // Register service worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('service-worker.js')
