@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="en" id="htmlRoot">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Re-Player</title>
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- PWA Manifest -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#000000">
-  <link rel="icon" sizes="192x192" href="icon-192.png">
-  <link rel="apple-touch-icon" href="icon-512.png">
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="icon" sizes="192x192" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-512.png" />
 
   <style>
     .bg-dark { background-color: #000; }
@@ -217,41 +217,7 @@
       li.innerHTML = `
         <span class="truncate">${f.name} <em>by ${f.uploader}</em></span>
         <div>
-          <button class="bouncy px-2" onclick='playTrack("${f.name}","${url}","${f.uploader}")'>▶️</button>
-          <span class="favorite bouncy px-2" onclick='toggleFav("${f.name}","${url}","${f.uploader}")'>
-            ${getArr('favs').some(x=>x.url===url)?'⭐':'☆'}
-          </span>
-        </div>`;
-      ul.appendChild(li);
-
-      // Attempt to fetch metadata (duration)
-      const tempAudio = new Audio();
-      tempAudio.src = url;
-      tempAudio.crossOrigin = "anonymous";
-      tempAudio.addEventListener('loadedmetadata', () => {
-        console.log(`${f.name} duration:`, tempAudio.duration.toFixed(1), 'seconds');
-      });
-    });
-  }
-
-  document.getElementById('fileInput').onchange = function(){
-    const f = this.files[0];
-    if(!f) return;
-    playTrack(f.name, URL.createObjectURL(f), 'Local');
-  };
-
-  loadAvailable();
-  renderList('recent','recentList');
-  renderList('favs','favList');
-
-  if('serviceWorker' in navigator){
-    window.addEventListener('load', ()=> {
-      navigator.serviceWorker.register('service-worker.js')
-        .then(reg => console.log('SW registered:', reg.scope))
-        .catch(err => console.error('SW failed:', err));
-    });
-  }
-  </script>
-</body>
-</html>
+          <button class="bouncy px-2" onclick='playTrack("${f.name}","
+::contentReference[oaicite:0]{index=0}
+ 
 
