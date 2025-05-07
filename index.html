@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="en" id="htmlRoot">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Re-Player</title>
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- PWA Manifest -->
-  <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#000000" />
-  <link rel="icon" sizes="192x192" href="icon-192.png" />
-  <link rel="apple-touch-icon" href="icon-512.png" />
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-512.png">
 
   <style>
     .bg-dark { background-color: #000; }
@@ -122,6 +122,7 @@
   const bufferLength = analyser.frequencyBinCount,
         dataArray = new Uint8Array(bufferLength);
 
+  // EQ chain setup
   const freqs = [60,170,350,1000,3500,10000];
   const filters = freqs.map(f => {
     const fl = audioCtx.createBiquadFilter();
@@ -134,6 +135,7 @@
   filters.reduce((prev, f) => (prev.connect(f), f)).connect(analyser);
   analyser.connect(audioCtx.destination);
 
+  // EQ presets
   const presets = {
     flat: [0,0,0,0,0,0],
     nexus: [4,2,-1,-1,2,4],
@@ -145,9 +147,11 @@
     filters.forEach((f,i) => f.gain.value = presets[e.target.value][i]);
   };
 
+  // Storage helpers
   const getArr = k => JSON.parse(localStorage.getItem(k)||'[]'),
         setArr = (k,a) => localStorage.setItem(k, JSON.stringify(a));
 
+  // Play & visualize
   async function playTrack(name,url,uploader){
     await audioCtx.resume();
     audioPlayer.src = url;
@@ -175,6 +179,7 @@
     draw();
   }
 
+  // Render lists
   function renderList(key, ulId){
     const ul = document.getElementById(ulId),
           arr = getArr(key);
@@ -183,11 +188,11 @@
       const li = document.createElement('li');
       li.className = 'flex justify-between items-center';
       li.innerHTML = `
-        <span class="truncate">${item.name} <em>by ${item.uploader}</em></span>
+        <span class="truncate">${item.name} <em>by ${item.uploader}</em></span>  
         <div>
           <button class="bouncy px-2" onclick='playTrack("${item.name}","${item.url}","${item.uploader}")'>▶️</button>
           <span class="favorite bouncy px-2" onclick='toggleFav("${item.name}","${item.url}","${item.uploader}")'>
-            ${getArr('favs').some(f=>f.url===item.url)?'⭐':'☆'}
+            ${getArr('favs').some(f => f.url===item.url) ? '⭐' : '☆'}
           </span>
         </div>`;
       ul.appendChild(li);
@@ -196,7 +201,7 @@
 
   function toggleFav(name,url,uploader){
     let favs = getArr('favs');
-    if(favs.some(f=>f.url===url)){
+    if (favs.some(f => f.url===url)) {
       favs = favs.filter(f=>f.url!==url);
     } else {
       favs.unshift({name,uploader,url});
@@ -206,6 +211,7 @@
     renderList('recent','recentList');
   }
 
+  // Fetch available tracks from backend
   async function loadAvailable(){
     const res = await fetch('https://experienced-denim-sushi.glitch.me/api/files');
     const files = await res.json();
@@ -217,7 +223,35 @@
       li.innerHTML = `
         <span class="truncate">${f.name} <em>by ${f.uploader}</em></span>
         <div>
-          <button class="bouncy px-2" onclick='playTrack("${f.name}","
-::contentReference[oaicite:0]{index=0}
- 
+          <button class="bouncy px-2" onclick='playTrack("${f.name}","${url}","${f.uploader}")'>▶️</button>
+          <span class="favorite bouncy px-2" onclick='toggleFav("${f.name}","${url}","${f.uploader}")'>
+            ${getArr('favs').some(f2 => f2.url===url) ? '⭐' : '☆'}
+          </span>
+        </div>`;
+      ul.appendChild(li);
+    });
+  }
 
+  // Local file input handler
+  document.getElementById('fileInput').onchange = function(){
+    const f = this.files[0];
+    if (!f) return;
+    playTrack(f.name, URL.createObjectURL(f), 'Local');
+  };
+
+  // Initialize
+  loadAvailable();
+  renderList('recent','recentList');
+  renderList('favs','favList');
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(reg => console.log('SW registered:', reg.scope))
+        .catch(err => console.error('SW failed:', err));
+    });
+  }
+  </script>
+</body>
+</html>
