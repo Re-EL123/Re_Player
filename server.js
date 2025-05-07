@@ -68,11 +68,18 @@ app.get("/api/files", async (req, res) => {
       pageSize: 1000
     });
 
-    const files = (response.data.files || []).map(file => ({
-      id: file.id,
-      name: file.name,
-      uploader: file.owners?.[0]?.displayName || "Unknown"
-    }));
+    const files = (response.data.files || []).map(file => {
+      let uploader = "Unknown";
+      if (file.owners && file.owners[0] && file.owners[0].displayName) {
+        uploader = file.owners[0].displayName;
+      }
+
+      return {
+        id: file.id,
+        name: file.name,
+        uploader: uploader
+      };
+    });
 
     res.json(files);
   } catch (err) {
