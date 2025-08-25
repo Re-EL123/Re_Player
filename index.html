@@ -36,18 +36,30 @@
     .favorite { cursor: pointer; }
     /* Three.js background */
     #threeBG { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    /* Content sits above Three.js */
     #app { position: relative; z-index: 1; }
+
+    /* Progress toast */
+    #dlToast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 50; }
+    .progress-track { height: 8px; border-radius: 9999px; background: rgba(255,255,255,0.15); overflow: hidden; }
+    .progress-bar { height: 100%; border-radius: 9999px; background: var(--accent); width: 0%; transition: width .35s ease; }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body class="min-h-screen p-6 font-sans bg-dark text-light" id="bodyRoot">
+  <!-- THREE Background -->
   <div id="threeBG"></div>
 
   <div id="app" class="max-w-md mx-auto">
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-3xl font-semibold accent">Re-Player</h1>
-      <button id="themeToggle" class="bouncy px-3 py-1 rounded-full border accent border-accent">Toggle Theme</button>
+      <button id="themeToggle" class="bouncy px-3 py-1 rounded-full border accent border-accent">
+        Toggle Theme
+      </button>
     </div>
 
+    <!-- Online Auth Button -->
     <div class="mb-4 text-center">
       <button onclick="window.location.href='https://experienced-denim-sushi.glitch.me/auth'"
               class="bouncy px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white font-semibold rounded-full">
@@ -55,33 +67,44 @@
       </button>
     </div>
 
+    <!-- Search / Play From Link or YouTube -->
     <div class="mb-6">
       <label class="block text-sm font-medium accent mb-2">Search, or Paste a URL / YouTube Link</label>
       <form id="searchForm" class="flex gap-2 mb-2">
         <input id="searchInput" type="text" placeholder="Search local lists or paste URL/YouTube"
                class="flex-1 p-2 rounded-md bg-gray-800 text-light placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"/>
-        <button class="bouncy px-4 py-2 rounded-md accent-border border">Go</button>
+        <button id="goBtn" class="bouncy px-4 py-2 rounded-md accent-border border flex items-center gap-2">
+          <svg id="goIcon" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M12.293 5.293a1 1 0 011.414 0l4 4a.997.997 0 010 1.414l-4 4a1 1 0 11-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z"/></svg>
+          Go
+        </button>
       </form>
       <div class="text-xs text-gray-400">
-        Tip: Paste a direct audio link (mp3, m4a, ogg, etc.) to play, or paste a YouTube link to fetch via API.
+        Tip: Paste a direct audio link (mp3, m4a, ogg, etc.) to play in the built-in player, or paste a YouTube link to fetch audio via API (keeps the visualizer & EQ).
       </div>
     </div>
 
+    <!-- Available Tracks from Drive -->
     <div class="mb-6">
       <h2 class="text-xl font-medium accent mb-2">Available Tracks</h2>
       <ul id="availableList" class="space-y-2 text-sm"></ul>
     </div>
 
+    <!-- Local File Input -->
     <label class="block mb-4">
       <input type="file" id="fileInput" accept="audio/*"
-        class="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-800 file:text-light file:bouncy hover:file:bg-gray-700"/>
+        class="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full
+               file:border-0 file:text-sm file:font-semibold file:bg-gray-800
+               file:text-light file:bouncy hover:file:bg-gray-700"/>
     </label>
 
+    <!-- Visualizer Canvas (2D bars) -->
     <canvas id="audioCanvas" class="bg-gray-900/70 rounded-xl mb-4"></canvas>
 
+    <!-- EQ Presets -->
     <div class="mb-4">
       <label for="eqPreset" class="block text-sm font-medium accent mb-1">Equalizer Preset</label>
-      <select id="eqPreset" class="block w-full p-2 rounded-md bg-gray-800 text-light bouncy hover:bg-gray-700">
+      <select id="eqPreset"
+        class="block w-full p-2 rounded-md bg-gray-800 text-light bouncy hover:bg-gray-700">
         <option value="flat">Flat</option>
         <option value="nexus">Nexus</option>
         <option value="jbl">JBL</option>
@@ -90,13 +113,24 @@
       </select>
     </div>
 
+    <!-- Player (HTML5) -->
     <audio id="audioPlayer" controls crossorigin="anonymous" class="w-full mb-6 accent"></audio>
 
+    <!-- YouTube Player Container (fallback if API fails) -->
+    <div id="ytWrap" class="mb-6 hidden">
+      <div class="rounded-xl overflow-hidden aspect-video">
+        <div id="ytPlayer"></div>
+      </div>
+      <div class="text-xs text-gray-400 mt-1">YouTube playback uses the official IFrame Player. Visuals may not react to audio due to browser security limits.</div>
+    </div>
+
+    <!-- Recently Played -->
     <div class="mb-6">
       <h2 class="text-xl font-medium accent mb-2">Recently Played</h2>
       <ul id="recentList" class="space-y-1 text-sm"></ul>
     </div>
 
+    <!-- Favorites -->
     <div class="mb-6">
       <h2 class="text-xl font-medium accent mb-2">Favorites</h2>
       <ul id="favList" class="space-y-1 text-sm"></ul>
@@ -104,41 +138,475 @@
 
     <div class="text-sm text-center">
       <p>Developed by <strong>Akani Shibiri</strong> of
-        <a href="https://www.re-el-branding.rf.gd" target="_blank" class="underline accent">Re-EL Branding</a>.
+        <a href="https://www.re-el-branding.rf.gd" target="_blank" class="underline accent">
+          Re-EL Branding
+        </a>.
       </p>
     </div>
   </div>
 
+  <!-- Download progress toast -->
+  <div id="dlToast" class="hidden w-[min(560px,92vw)] bg-gray-900/90 text-white rounded-2xl p-4 shadow-2xl border border-white/10 backdrop-blur">
+    <div class="flex items-start gap-3">
+      <div class="mt-1">
+        <svg class="w-5 h-5 spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity=".2" stroke-width="4"/><path d="M22 12a10 10 0 00-10-10" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+      </div>
+      <div class="flex-1">
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-sm font-semibold">Fetching YouTube audio…</p>
+          <button id="dlCancel" class="text-xs opacity-80 hover:opacity-100 underline">Cancel</button>
+        </div>
+        <div class="mt-2 progress-track">
+          <div id="dlBar" class="progress-bar"></div>
+        </div>
+        <div id="dlMsg" class="mt-1 text-[11px] opacity-80">Starting…</div>
+      </div>
+    </div>
+  </div>
+
   <script>
-    const RAPID_KEY = '82ae10db11mshb41ccacdd991130p108a22jsnf3ae22b94bbd';
+    const API_KEY = 'AIzaSyCkgTbWUiXyaYIcDvgLRg4IeiFmPIoeZMI';
+
+    /* ========== RapidAPI (YouTube MP3/MP4 Downloader) ========== */
+    const RAPID_KEY  = '82ae10db11mshb41ccacdd991130p108a22jsnf3ae22b94bbd';
     const RAPID_HOST = 'youtube-mp4-mp3-downloader.p.rapidapi.com';
 
-    async function fetchYouTubeAudio(ytId) {
-      const url = `https://${RAPID_HOST}/api/v1/download?format=mp3&id=${ytId}&audioQuality=128&addInfo=false`;
-      const options = { method: 'GET', headers: { 'x-rapidapi-key': RAPID_KEY, 'x-rapidapi-host': RAPID_HOST }};
-      const res = await fetch(url, options);
-      const data = await res.json();
-      if (data.success && data.id) {
-        return await checkProgress(data.id);
-      }
-      throw new Error('Download init failed');
+    let pollAbort = { aborted:false };
+    const dlToast = document.getElementById('dlToast');
+    const dlBar   = document.getElementById('dlBar');
+    const dlMsg   = document.getElementById('dlMsg');
+    const dlCancel= document.getElementById('dlCancel');
+    dlCancel.onclick = () => { pollAbort.aborted = true; hideToast(); };
+
+    function showToast(msg, pct){
+      dlToast.classList.remove('hidden');
+      dlMsg.textContent = msg || '';
+      if (typeof pct === 'number') dlBar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    }
+    function hideToast(){
+      dlToast.classList.add('hidden');
+      dlBar.style.width = '0%';
+      dlMsg.textContent = '';
     }
 
-    async function checkProgress(jobId) {
-      const url = `https://${RAPID_HOST}/api/v1/progress?id=${jobId}`;
-      const options = { method: 'GET', headers: { 'x-rapidapi-key': RAPID_KEY, 'x-rapidapi-host': RAPID_HOST }};
-      for (let i=0;i<20;i++) { // poll max 20 times
-        const res = await fetch(url, options);
-        const data = await res.json();
-        if (data.success && data.downloadUrl) return data.downloadUrl;
-        await new Promise(r=>setTimeout(r,2000));
+    async function fetchYouTubeAudioInit(ytId){
+      // Your example had "format=720" and audioQuality=128; to prefer MP3 audio we set format=mp3 (service accepts both).
+      const url = `https://${RAPID_HOST}/api/v1/download?format=mp3&id=${encodeURIComponent(ytId)}&audioQuality=128&addInfo=false`;
+      const options = {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-key': RAPID_KEY,
+          'x-rapidapi-host': RAPID_HOST
+        }
+      };
+      const res = await fetch(url, options);
+      // The example used response.text(); the API usually returns JSON.
+      let data;
+      try { data = await res.json(); } catch { data = { raw: await res.text() }; }
+      return data;
+    }
+
+    async function fetchProgress(jobId){
+      const url = `https://${RAPID_HOST}/api/v1/progress?id=${encodeURIComponent(jobId)}`;
+      const options = {
+        method: 'GET',
+        headers: {
+          'x-rapidapi-key': RAPID_KEY,
+          'x-rapidapi-host': RAPID_HOST
+        }
+      };
+      const res = await fetch(url, options);
+      let data;
+      try { data = await res.json(); } catch { data = { raw: await res.text() }; }
+      return data;
+    }
+
+    async function getYouTubeAudioUrl(ytId){
+      pollAbort = { aborted:false };
+      showToast('Contacting converter…', 5);
+
+      const init = await fetchYouTubeAudioInit(ytId);
+      if (!init) throw new Error('No response from API');
+      // Some responses: { success:true, id:"<jobId>" } or sometimes direct downloadUrl
+      let jobId = init.id || init.jobId;
+      if (init.downloadUrl) {
+        showToast('Ready', 100);
+        return init.downloadUrl;
       }
-      throw new Error('Progress timeout');
+      if (!jobId) throw new Error('Failed to get a job id');
+
+      // Poll progress
+      let pct = 8;
+      for (let i=0; i<30; i++) { // ~60s max (2s each)
+        if (pollAbort.aborted) throw new Error('Cancelled');
+        const prog = await fetchProgress(jobId);
+        // Expect possibly: { success:true, progress: <0..100>, downloadUrl:"..." }
+        if (prog.progress != null) pct = prog.progress;
+        showToast(`Converting… ${Math.round(pct)}%`, pct || (10 + i*3));
+        if (prog.downloadUrl) {
+          showToast('Finalizing…', 95);
+          return prog.downloadUrl;
+        }
+        await new Promise(r => setTimeout(r, 2000));
+      }
+      throw new Error('Timeout waiting for conversion');
     }
   </script>
 
-  <!-- keep rest of your player/visualizer/3D code unchanged -->
-  <script src="player-core.js"></script>
-  <script src="visualizer-three.js"></script>
+  <script>
+    // THEME
+    const htmlRoot = document.getElementById('htmlRoot'),
+          bodyRoot = document.getElementById('bodyRoot'),
+          themeToggle = document.getElementById('themeToggle');
+
+    const applyTheme = t => {
+      bodyRoot.classList.replace(t==='light'?'bg-dark':'bg-light', t==='light'?'bg-light':'bg-dark');
+      bodyRoot.classList.replace(t==='light'?'text-light':'text-dark', t==='light'?'text-dark':'text-light');
+      htmlRoot.classList.toggle('dark', t!=='light');
+      localStorage.setItem('theme', t);
+    };
+    applyTheme(localStorage.getItem('theme')||'dark');
+    themeToggle.onclick = () => applyTheme(localStorage.getItem('theme')==='dark'?'light':'dark');
+
+    // AUDIO + ANALYSER
+    const audioPlayer = document.getElementById('audioPlayer'),
+          barsCanvas = document.getElementById('audioCanvas'),
+          barsCtx = barsCanvas.getContext('2d');
+
+    const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const sourceNode = audioCtx.createMediaElementSource(audioPlayer);
+
+    // EQ chain
+    const freqs = [60,170,350,1000,3500,10000];
+    const filters = freqs.map(f => {
+      const fl = audioCtx.createBiquadFilter();
+      fl.type = 'peaking'; fl.frequency.value = f; fl.Q.value = 1; fl.gain.value = 0;
+      return fl;
+    });
+    sourceNode.connect(filters[0]);
+    filters.reduce((prev, f) => (prev.connect(f), f)).connect(analyser);
+    analyser.connect(audioCtx.destination);
+
+    const presets = {
+      flat: [0,0,0,0,0,0],
+      nexus: [4,2,-1,-1,2,4],
+      jbl:   [5,3,0,-2,3,5],
+      jvc:   [3,1,0,-1,1,3],
+      apple: [2,1,0,-1,1,2]
+    };
+    document.getElementById('eqPreset').onchange = e => {
+      filters.forEach((f,i) => f.gain.value = presets[e.target.value][i]);
+    };
+
+    // STORAGE HELPERS
+    const getArr = k => JSON.parse(localStorage.getItem(k)||'[]');
+    const setArr = (k,a) => localStorage.setItem(k, JSON.stringify(a));
+
+    // RENDER LISTS
+    function renderList(key, ulId, filterTerm=''){
+      const ul = document.getElementById(ulId), arr = getArr(key);
+      const term = filterTerm.trim().toLowerCase();
+      ul.innerHTML = '';
+      arr.filter(item => !term || (item.name+" "+item.uploader).toLowerCase().includes(term))
+         .forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'flex justify-between items-center';
+        li.innerHTML = `
+          <span class="truncate">${item.name} <em>by ${item.uploader}</em></span>
+          <div>
+            <button class="bouncy px-2" onclick='playTrack("${item.name}","${item.url}","${item.uploader}")'>▶️</button>
+            <span class="favorite bouncy px-2" onclick='toggleFav("${item.name}","${item.url}","${item.uploader}")'>
+              ${getArr('favs').some(f => f.url===item.url) ? '⭐' : '☆'}
+            </span>
+          </div>`;
+        ul.appendChild(li);
+      });
+    }
+
+    function toggleFav(name,url,uploader){
+      let favs = getArr('favs');
+      if (favs.some(f => f.url===url)) { favs = favs.filter(f=>f.url!==url); }
+      else { favs.unshift({name,uploader,url}); }
+      setArr('favs', favs.slice(0,10));
+      renderList('favs','favList');
+      renderList('recent','recentList');
+    }
+
+    // PLAYBACK
+    const ytWrap = document.getElementById('ytWrap');
+    let youtubeMode = false; // switches analyser-driven visuals behavior
+
+    async function playTrack(name,url,uploader){
+      // Prefer: If YouTube URL, try RapidAPI to get a direct audio URL.
+      if (isYouTubeUrl(url)) {
+        youtubeMode = false;      // we want analyser from HTML5 audio if possible
+        ytWrap.classList.add('hidden');
+        try {
+          const vid = extractYouTubeId(url);
+          if (!vid) throw new Error('Could not parse YouTube ID');
+          await audioCtx.resume();
+          const audioUrl = await getYouTubeAudioUrl(vid);
+          if (!audioUrl) throw new Error('No audio URL returned');
+          showToast('Loading audio…', 100);
+          audioPlayer.src = audioUrl;
+          await audioPlayer.play();
+          hideToast();
+        } catch (err) {
+          console.error('RapidAPI flow failed, falling back to IFrame:', err);
+          hideToast();
+          // Fallback to IFrame player (no analyser)
+          youtubeMode = true;
+          ytWrap.classList.remove('hidden');
+          await audioCtx.resume();
+          loadYouTube(url);
+        }
+      } else {
+        youtubeMode = false;
+        ytWrap.classList.add('hidden');
+        await audioCtx.resume();
+        audioPlayer.src = url;
+        audioPlayer.play();
+      }
+      // Update recents
+      const recent = getArr('recent');
+      setArr('recent', [{name,uploader,url}, ...recent.filter(r => r.url!==url)].slice(0,10));
+      renderList('recent','recentList', currentSearchTerm);
+    }
+
+    // SIMPLE 2D BARS VISUALIZER
+    function drawBars(){
+      requestAnimationFrame(drawBars);
+      // Resize canvas to device pixels
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = barsCanvas.clientWidth, cssH = barsCanvas.clientHeight;
+      if (barsCanvas.width !== cssW*dpr || barsCanvas.height !== cssH*dpr){
+        barsCanvas.width = cssW*dpr; barsCanvas.height = cssH*dpr; barsCtx.setTransform(1,0,0,1,0,0); barsCtx.scale(dpr,dpr);
+      }
+      barsCtx.clearRect(0,0,cssW,cssH);
+      barsCtx.fillStyle = '#000';
+      barsCtx.globalAlpha = 0.6; barsCtx.fillRect(0,0,cssW,cssH); barsCtx.globalAlpha = 1;
+
+      if (!youtubeMode) {
+        analyser.getByteFrequencyData(dataArray);
+      }
+      const barW = (cssW/bufferLength)*2.5; let x=0;
+      for(let i=0;i<bufferLength;i++){
+        const v = youtubeMode ? (0.4+0.6*Math.sin((Date.now()/200)+(i*0.15))) : (dataArray[i]/255);
+        const h = v * cssH;
+        barsCtx.fillStyle = 'rgba(255,149,0,0.9)';
+        barsCtx.fillRect(x, cssH-h, barW, h);
+        x += barW+1;
+      }
+    }
+
+    // AVAILABLE FROM DRIVE
+    async function loadAvailable(){
+      try {
+        const res = await fetch('https://experienced-denim-sushi.glitch.me/api/files');
+        const files = await res.json();
+        const ul = document.getElementById('availableList');
+        ul.innerHTML = '';
+        files.forEach(f => {
+          const url = `https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${API_KEY}`;
+          const li = document.createElement('li');
+          li.className = 'flex justify-between items-center';
+          li.innerHTML = `
+            <span class="truncate">${f.name} <em>by ${f.uploader}</em></span>
+            <div>
+              <button class="bouncy px-2" onclick='playTrack("${f.name}","${url}","${f.uploader}")'>▶️</button>
+              <span class="favorite bouncy px-2" onclick='toggleFav("${f.name}","${url}","${f.uploader}")'>
+                ${getArr('favs').some(f2 => f2.url===url) ? '⭐' : '☆'}
+              </span>
+            </div>`;
+          ul.appendChild(li);
+        });
+      } catch (err) {
+        console.error('Drive Load Failed:', err);
+      }
+    }
+
+    // LOCAL FILES
+    document.getElementById('fileInput').onchange = function(){
+      const f = this.files[0];
+      if (!f) return;
+      playTrack(f.name, URL.createObjectURL(f), 'Local');
+    };
+
+    // SEARCH / URL HANDLING
+    const searchForm = document.getElementById('searchForm');
+    const searchInput = document.getElementById('searchInput');
+    const goBtn = document.getElementById('goBtn');
+    const goIcon = document.getElementById('goIcon');
+    let currentSearchTerm = '';
+
+    function setGoLoading(is){
+      goBtn.disabled = is;
+      goIcon.classList.toggle('spin', is);
+      goBtn.classList.toggle('opacity-60', is);
+    }
+
+    searchForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const q = searchInput.value.trim();
+      currentSearchTerm = q;
+      if (!q) return;
+
+      if (isProbablyUrl(q)) {
+        setGoLoading(true);
+        const name = isYouTubeUrl(q) ? `YouTube: ${extractYouTubeId(q)}` : q.split('/').pop()||q;
+        try {
+          await playTrack(name, q, isYouTubeUrl(q)?'YouTube':'Link');
+        } finally {
+          setGoLoading(false);
+        }
+      } else {
+        // Filter lists
+        renderList('recent','recentList', q);
+        renderList('favs','favList', q);
+        // Filter available list
+        const lis = [...document.querySelectorAll('#availableList li')];
+        lis.forEach(li=>{
+          const show = li.innerText.toLowerCase().includes(q.toLowerCase());
+          li.style.display = show? '' : 'none';
+        });
+      }
+    });
+
+    function isProbablyUrl(s){
+      try { const u = new URL(s); return !!u.protocol.startsWith('http'); } catch(e){ return false; }
+    }
+    function isYouTubeUrl(u){
+      try { const url = new URL(u); const host = url.hostname.replace('www.','');
+        return ['youtube.com','youtu.be','music.youtube.com','youtube-nocookie.com'].includes(host);
+      } catch(e){ return false; }
+    }
+    function extractYouTubeId(u){
+      try {
+        const url = new URL(u);
+        if (url.hostname.includes('youtu.be')) return url.pathname.replace('/','');
+        if (url.searchParams.get('v')) return url.searchParams.get('v');
+        const paths = url.pathname.split('/').filter(Boolean);
+        const idx = paths.findIndex(p=>p==='shorts' || p==='embed');
+        if (idx>=0 && paths[idx+1]) return paths[idx+1];
+      } catch(e){}
+      return '';
+    }
+
+    // YOUTUBE IFRAME API (fallback)
+    let ytPlayer = null;
+    function ensureYTApi(){
+      if (window.YT && window.YT.Player) return Promise.resolve();
+      return new Promise(res=>{
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        document.body.appendChild(tag);
+        window.onYouTubeIframeAPIReady = () => res();
+      });
+    }
+    async function loadYouTube(url){
+      await ensureYTApi();
+      const vid = extractYouTubeId(url);
+      if (!vid) return;
+      if (ytPlayer) { ytPlayer.loadVideoById(vid); return; }
+      ytPlayer = new YT.Player('ytPlayer', {
+        videoId: vid,
+        playerVars: { autoplay: 1, rel: 0 },
+        events: {
+          onReady: (ev)=> ev.target.playVideo(),
+          onStateChange: (e)=>{ /* keep visible for replay */ }
+        }
+      });
+    }
+
+    // INITIALIZE
+    loadAvailable();
+    renderList('recent','recentList');
+    renderList('favs','favList');
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js')
+          .then(reg => console.log('SW registered:', reg.scope))
+          .catch(err => console.error('SW failed:', err));
+      });
+    }
+
+    // Draw 2D bars
+    drawBars();
+  </script>
+
+  <!-- THREE.JS REACTIVE (or ambient) ANIMATION -->
+  <script>
+    const threeRoot = document.getElementById('threeBG');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.z = 6;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    threeRoot.appendChild(renderer.domElement);
+
+    // Objects: TorusKnot + Particles
+    const torusGeom = new THREE.TorusKnotGeometry(1, 0.35, 200, 32);
+    const torusMat = new THREE.MeshStandardMaterial({ color: 0xff9500, metalness: 0.2, roughness: 0.3, transparent: true, opacity: 0.6 });
+    const torus = new THREE.Mesh(torusGeom, torusMat);
+    scene.add(torus);
+
+    // Particles
+    const partGeom = new THREE.BufferGeometry();
+    const COUNT = 900;
+    const positions = new Float32Array(COUNT*3);
+    for (let i=0;i<COUNT;i++){
+      const r = 6 + Math.random()*6; const a = Math.random()*Math.PI*2; const b = (Math.random()-0.5)*Math.PI;
+      positions[i*3+0] = r*Math.cos(a)*Math.cos(b);
+      positions[i*3+1] = r*Math.sin(b);
+      positions[i*3+2] = r*Math.sin(a)*Math.cos(b);
+    }
+    partGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const partMat = new THREE.PointsMaterial({ size: 0.03, color: 0xff9500, transparent: true, opacity: 0.5 });
+    const points = new THREE.Points(partGeom, partMat);
+    scene.add(points);
+
+    // Lights
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambient);
+    const dir = new THREE.DirectionalLight(0xffe0c0, 0.8); dir.position.set(5,5,5); scene.add(dir);
+
+    // Responsive
+    window.addEventListener('resize', ()=>{
+      camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Animate
+    function animate(){
+      requestAnimationFrame(animate);
+      // React to audio when not in YouTube mode, otherwise gentle breathing
+      let amp = 0.2;
+      try {
+        if (!window.youtubeMode) {
+          analyser.getByteFrequencyData(dataArray);
+          amp = (dataArray.reduce((a,b)=>a+b,0)/(dataArray.length*255));
+        } else {
+          amp = 0.35 + 0.25*Math.sin(Date.now()/700);
+        }
+      } catch(e){}
+
+      torus.rotation.x += 0.003 + amp*0.02;
+      torus.rotation.y += 0.004 + amp*0.02;
+      torus.scale.setScalar(1 + amp*0.8);
+
+      points.rotation.y -= 0.0008;
+      points.material.size = 0.02 + amp*0.05;
+
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
 </body>
 </html>
