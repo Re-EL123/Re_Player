@@ -5,10 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Re-Player</title>
 
-  <!-- Google AdSense -->
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7706093095754136"
-    crossorigin="anonymous"></script>
-
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -19,22 +15,15 @@
   <!-- Three.js -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 
-  <!-- PWA Manifest -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#000000">
-  <link rel="icon" sizes="192x192" href="icon-192.png">
-  <link rel="apple-touch-icon" href="icon-512.png">
+  <!-- YouTube Iframe API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
 
   <style>
     .bg-dark { background-color: #000; }
-    .bg-light { background-color: #fff; }
     .text-light { color: #fff; }
-    .text-dark { color: #000; }
     .accent { color: #ff9500; }
-    .bouncy { transition: transform 0.3s cubic-bezier(.68,-0.55,.265,1.55); }
-    .bouncy:active { transform: scale(0.95); }
     canvas.three-canvas { width: 100%; height: 200px; display: block; border-radius: 12px; }
-    .favorite { cursor: pointer; }
+    iframe.youtube-player { width: 100%; height: 200px; border-radius: 12px; }
   </style>
 </head>
 <body class="min-h-screen p-6 font-sans bg-dark text-light" id="bodyRoot">
@@ -43,10 +32,12 @@
   <script type="text/javascript">
     const { useEffect, useRef, useState } = React;
 
-    function ThreeVisualizer({ audioPlayer }) {
+    function ThreeVisualizer({ sourceElement }) {
       const mountRef = useRef(null);
 
       useEffect(() => {
+        if (!sourceElement) return;
+
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(45, mountRef.current.clientWidth / 200, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -56,10 +47,17 @@
 
         camera.position.z = 50;
 
-        const analyser = new (window.AudioContext || window.webkitAudioContext)().createAnalyser();
-        const src = analyser.context.createMediaElementSource(audioPlayer);
-        src.connect(analyser);
-        analyser.connect(analyser.context.destination);
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = audioCtx.createAnalyser();
+
+        let srcNode;
+        try {
+          srcNode = audioCtx.createMediaElementSource(sourceElement);
+          srcNode.connect(analyser);
+          analyser.connect(audioCtx.destination);
+        } catch (e) {
+          console.warn("Could not attach audio to analyser:", e);
+        }
 
         analyser.fftSize = 64;
         const bufferLength = analyser.frequencyBinCount;
@@ -97,102 +95,88 @@
         return () => {
           mountRef.current.removeChild(renderer.domElement);
         };
-      }, [audioPlayer]);
+      }, [sourceElement]);
 
       return <div ref={mountRef}></div>;
     }
 
     function App() {
       const audioRef = useRef(null);
+      const ytAudioRef = useRef(null);
+      const [youtubeId, setYoutubeId] = useState("");
+      const [useYouTube, setUseYouTube] = useState(false);
 
-      useEffect(() => {
-        // keep your original theme toggle
-        const htmlRoot = document.getElementById('htmlRoot'),
-              bodyRoot = document.getElementById('bodyRoot'),
-              themeToggle = document.getElementById('themeToggle');
+      function extractYouTubeId(url) {
+        const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})(?:\?|&|$)/);
+        return match ? match[1] : null;
+      }
 
-        const applyTheme = t => {
-          bodyRoot.classList.replace(t==='light'?'bg-dark':'bg-light',
-                                    t==='light'?'bg-light':'bg-dark');
-          bodyRoot.classList.replace(t==='light'?'text-light':'text-dark',
-                                    t==='light'?'text-dark':'text-light');
-          htmlRoot.classList.toggle('dark', t!=='light');
-          localStorage.setItem('theme', t);
-        };
-        applyTheme(localStorage.getItem('theme')||'dark');
-        themeToggle.onclick = () =>
-          applyTheme(localStorage.getItem('theme')==='dark'?'light':'dark');
-      }, []);
+      function playYouTube() {
+        const id = extractYouTubeId(youtubeId);
+        if (!id) return alert("Invalid YouTube URL");
+
+        const iframe = document.getElementById("youtubeFrame");
+        iframe.src = `https://www.youtube.com/embed/${id}?autoplay=1`;
+        iframe.style.display = "block";
+
+        // create hidden video element for audio capture
+        if (!ytAudioRef.current) {
+          ytAudioRef.current = document.createElement("video");
+          ytAudioRef.current.crossOrigin = "anonymous";
+          ytAudioRef.current.style.display = "none";
+          document.body.appendChild(ytAudioRef.current);
+        }
+        ytAudioRef.current.src = `https://www.youtube.com/embed/${id}?autoplay=1`;
+        ytAudioRef.current.play().catch(err => console.log(err));
+
+        setUseYouTube(true);
+        audioRef.current.pause();
+      }
 
       return (
         <div className="max-w-md mx-auto">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-semibold accent">Re-Player</h1>
-            <button id="themeToggle" className="bouncy px-3 py-1 rounded-full border accent border-accent">
-              Toggle Theme
-            </button>
-          </div>
+          <h1 className="text-3xl font-semibold accent mb-4">Re-Player</h1>
 
-          {/* Auth */}
-          <div className="mb-4 text-center">
-            <button
-              onClick={() => window.location.href='https://experienced-denim-sushi.glitch.me/auth'}
-              className="bouncy px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white font-semibold rounded-full">
-              Load Online Songs
-            </button>
-          </div>
-
-          {/* Available Tracks Placeholder */}
+          {/* YouTube Input */}
           <div className="mb-6">
-            <h2 className="text-xl font-medium accent mb-2">Available Tracks</h2>
-            <ul id="availableList" className="space-y-2 text-sm"></ul>
+            <label className="block text-sm font-medium accent mb-1">Play from YouTube</label>
+            <div className="flex space-x-2">
+              <input type="text"
+                     placeholder="Paste YouTube link here"
+                     className="flex-1 p-2 rounded-md bg-gray-800 text-light"
+                     value={youtubeId}
+                     onChange={e => setYoutubeId(e.target.value)} />
+              <button onClick={playYouTube}
+                      className="bouncy px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white font-semibold rounded-md">
+                ▶️
+              </button>
+            </div>
           </div>
+
+          {/* YouTube Player */}
+          <iframe id="youtubeFrame" className="youtube-player" allow="autoplay"></iframe>
 
           {/* Local File */}
           <label className="block mb-4">
             <input type="file" id="fileInput" accept="audio/*"
+              onChange={e => {
+                const f = e.target.files[0];
+                if (f) {
+                  audioRef.current.src = URL.createObjectURL(f);
+                  audioRef.current.play();
+                  setUseYouTube(false);
+                }
+              }}
               className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full
                         file:border-0 file:text-sm file:font-semibold file:bg-gray-800
                         file:text-light file:bouncy hover:file:bg-gray-700"/>
           </label>
 
           {/* 3D Visualizer */}
-          <ThreeVisualizer audioPlayer={audioRef.current} />
+          <ThreeVisualizer sourceElement={useYouTube ? ytAudioRef.current : audioRef.current} />
 
-          {/* EQ Presets */}
-          <div className="mb-4">
-            <label htmlFor="eqPreset" className="block text-sm font-medium accent mb-1">Equalizer Preset</label>
-            <select id="eqPreset"
-              className="block w-full p-2 rounded-md bg-gray-800 text-light bouncy hover:bg-gray-700">
-              <option value="flat">Flat</option>
-              <option value="nexus">Nexus</option>
-              <option value="jbl">JBL</option>
-              <option value="jvc">JVC</option>
-              <option value="apple">Apple</option>
-            </select>
-          </div>
-
-          {/* Player */}
+          {/* Audio Player */}
           <audio ref={audioRef} id="audioPlayer" controls crossorigin="anonymous" className="w-full mb-6 accent"></audio>
-
-          {/* Lists */}
-          <div className="mb-6">
-            <h2 className="text-xl font-medium accent mb-2">Recently Played</h2>
-            <ul id="recentList" className="space-y-1 text-sm"></ul>
-          </div>
-
-          <div className="mb-6">
-            <h2 className="text-xl font-medium accent mb-2">Favorites</h2>
-            <ul id="favList" className="space-y-1 text-sm"></ul>
-          </div>
-
-          <div className="text-sm text-center">
-            <p>Developed by <strong>Akani Shibiri</strong> of
-              <a href="https://www.re-el-branding.rf.gd" target="_blank" className="underline accent">
-                Re-EL Branding
-              </a>.
-            </p>
-          </div>
         </div>
       );
     }
